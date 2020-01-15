@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"math"
 	"math/rand"
-	"runtime"
 	"sort"
 	"sync"
 	"time"
@@ -14,7 +13,8 @@ import (
 // MergeSort performs the merge sort algorithm.
 // Please supplement this function to accomplish the home work.
 
-var nCPU = runtime.NumCPU()
+//var nCPU = runtime.NumCPU()
+var nCPU = 100
 var wg sync.WaitGroup
 
 type item struct {
@@ -30,7 +30,7 @@ func (hp *itemHeap) Push(x interface{}) {
 func (hp *itemHeap) Pop() interface{} {
 	n := len(*hp)
 	x := (*hp)[n-1]
-	*hp = (*hp)[:n-1]
+	*hp = (*hp)[0 : n-1]
 	return x
 }
 
@@ -46,15 +46,15 @@ func (hp itemHeap) Swap(i, j int) {
 	hp[i], hp[j] = hp[j], hp[i]
 }
 
-func MergeSort(src []int64) {
+func iMergeSort(src []int64) {
 	//mergeUp2Down(src, 0, len(src)-1)
 	gap := int(math.Ceil(float64(len(src)) / float64(nCPU)))
-	for i := 0; i < nCPU; i++ {
+	for i := 0; i < len(src); i += gap {
 		var tmpSrc []int64
 		if i+gap > len(src)-1 {
-			tmpSrc = src[i*gap:]
+			tmpSrc = src[i:]
 		} else {
-			tmpSrc = src[i*gap : (i+1)*gap]
+			tmpSrc = src[i : i+gap]
 		}
 		wg.Add(1)
 		go innerSort(tmpSrc)
@@ -67,32 +67,43 @@ func innerSort(src []int64) {
 	defer wg.Done()
 	sort.Slice(src, func(i, j int) bool { return src[i] < src[j] })
 }
-
+func MergeSort(src []int64) {
+	sort.Slice(src, func(i, j int) bool { return src[i] < src[j] })
+}
 func merge(src []int64) {
+	tmp := make([]int64, len(src))
+	copy(tmp, src)
 	array := make([][]int64, nCPU)
 	gap := int(math.Ceil(float64(len(src)) / float64(nCPU)))
-	hp := make(itemHeap, nCPU)
-	for i := 0; i < nCPU; i++ {
+	hp := make(itemHeap, 0)
+	f := true
+	for i := 0; i < nCPU && f; i++ {
 		var tmpSrc []int64
-		if i+gap > len(src)-1 {
-			tmpSrc = src[i*gap:]
+		if (i+1)*gap > len(src)-1 {
+			tmpSrc = tmp[i*gap:]
+			f = false
 		} else {
-			tmpSrc = src[i*gap : (i+1)*gap]
+			tmpSrc = tmp[i*gap : (i+1)*gap]
 		}
 		array[i] = tmpSrc
 		heap.Push(&hp, item{tmpSrc[0], i, 0})
 	}
+	//fmt.Println(array)
+	//fmt.Println(hp)
 	for i := 0; i < len(src); i++ {
 		min := (heap.Pop(&hp)).(item)
+		//fmt.Println(array)
+		//fmt.Println(hp)
 		src[i] = min.value
 		if min.col < len(array[min.row])-1 {
 			heap.Push(&hp, item{array[min.row][min.col+1], min.row, min.col + 1})
 		}
+		//fmt.Println(hp)
 	}
 }
 
 func main() {
-	num := 20
+	num := 5
 	src := make([]int64, num)
 	rand.Seed(time.Now().UnixNano())
 	for i := 0; i < num; i++ {
