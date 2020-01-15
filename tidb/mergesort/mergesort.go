@@ -14,17 +14,17 @@ import (
 // Please supplement this function to accomplish the home work.
 
 //var nCPU = runtime.NumCPU()
-var nCPU = 100
+var nCPU = 4
 var wg sync.WaitGroup
 
 type item struct {
 	value    int64
 	row, col int
 }
-type itemHeap []item
+type itemHeap []*item
 
 func (hp *itemHeap) Push(x interface{}) {
-	*hp = append(*hp, x.(item))
+	*hp = append(*hp, x.(*item))
 }
 
 func (hp *itemHeap) Pop() interface{} {
@@ -46,9 +46,17 @@ func (hp itemHeap) Swap(i, j int) {
 	hp[i], hp[j] = hp[j], hp[i]
 }
 
-func iMergeSort(src []int64) {
-	//mergeUp2Down(src, 0, len(src)-1)
+func MergeSort(src []int64) {
 	gap := int(math.Ceil(float64(len(src)) / float64(nCPU)))
+	//l := len(src)
+	//for i := 0; i < nCPU; i++ {
+	//	wg.Add(1)
+	//	tmpSrc := src[i*l/nCPU : (i+1)*l/nCPU]
+	//	go func() {
+	//		defer wg.Done()
+	//		sort.Slice(tmpSrc, func(i, j int) bool { return tmpSrc[i] < tmpSrc[j] })
+	//	}()
+	//}
 	for i := 0; i < len(src); i += gap {
 		var tmpSrc []int64
 		if i+gap > len(src)-1 {
@@ -67,9 +75,7 @@ func innerSort(src []int64) {
 	defer wg.Done()
 	sort.Slice(src, func(i, j int) bool { return src[i] < src[j] })
 }
-func MergeSort(src []int64) {
-	sort.Slice(src, func(i, j int) bool { return src[i] < src[j] })
-}
+
 func merge(src []int64) {
 	tmp := make([]int64, len(src))
 	copy(tmp, src)
@@ -77,6 +83,12 @@ func merge(src []int64) {
 	gap := int(math.Ceil(float64(len(src)) / float64(nCPU)))
 	hp := make(itemHeap, 0)
 	f := true
+	//l := len(src)
+	//for i := 0; i < nCPU; i++ {
+	//	tmpSrc := tmp[i*l/nCPU : (i+1)*l/nCPU]
+	//	array[i] = tmpSrc
+	//	heap.Push(&hp, item{tmpSrc[0], i, 0})
+	//}
 	for i := 0; i < nCPU && f; i++ {
 		var tmpSrc []int64
 		if (i+1)*gap > len(src)-1 {
@@ -86,17 +98,21 @@ func merge(src []int64) {
 			tmpSrc = tmp[i*gap : (i+1)*gap]
 		}
 		array[i] = tmpSrc
-		heap.Push(&hp, item{tmpSrc[0], i, 0})
+		//hp[i] = item{tmpSrc[0], i, 0}
+		heap.Push(&hp, &item{tmpSrc[0], i, 0})
 	}
 	//fmt.Println(array)
 	//fmt.Println(hp)
 	for i := 0; i < len(src); i++ {
-		min := (heap.Pop(&hp)).(item)
+		min := (heap.Pop(&hp)).(*item)
 		//fmt.Println(array)
 		//fmt.Println(hp)
 		src[i] = min.value
 		if min.col < len(array[min.row])-1 {
-			heap.Push(&hp, item{array[min.row][min.col+1], min.row, min.col + 1})
+			//heap.Push(&hp, item{array[min.row][min.col+1], min.row, min.col + 1})
+			min.value = array[min.row][min.col+1]
+			min.col +=1
+			heap.Push(&hp, min)
 		}
 		//fmt.Println(hp)
 	}
@@ -112,5 +128,9 @@ func main() {
 	fmt.Println(src)
 	fmt.Printf("%T\n", src)
 	MergeSort(src)
+	//l:=len(src)
+	//for i := 0; i < nCPU; i++ {
+	//	fmt.Println(src[i*l/nCPU:(i+1)*l/nCPU])
+	//}
 	fmt.Println(src)
 }
