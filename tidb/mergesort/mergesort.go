@@ -57,15 +57,13 @@ func MergeSort(src []int64) {
 			tmpSrc = src[i : i+gap]
 		}
 		wg.Add(1)
-		go innerSort(tmpSrc)
+		go func() {
+			defer wg.Done()
+			sort.Slice(tmpSrc, func(i, j int) bool { return tmpSrc[i] < tmpSrc[j] })
+		}()
 	}
 	wg.Wait()
 	merge(src)
-}
-
-func innerSort(src []int64) {
-	defer wg.Done()
-	sort.Slice(src, func(i, j int) bool { return src[i] < src[j] })
 }
 
 func merge(src []int64) {
@@ -87,12 +85,14 @@ func merge(src []int64) {
 		heap.Push(&hp, &item{tmpSrc[0], i, 0})
 	}
 	for i := 0; i < len(src); i++ {
-		min := (heap.Pop(&hp)).(*item)
+		min := hp[0]
 		src[i] = min.value
 		if min.col < len(array[min.row])-1 {
 			min.value = array[min.row][min.col+1]
 			min.col += 1
-			heap.Push(&hp, min)
+			heap.Fix(&hp, 0)
+		} else {
+			heap.Pop(&hp)
 		}
 	}
 }
