@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"hash/fnv"
+	"io"
 	"io/ioutil"
 	"log"
 	"os"
@@ -112,7 +113,42 @@ func (c *MRCluster) worker() {
 				// hint: don't encode results returned by ReduceF, and just output
 				// them into the destination file directly so that users can get
 				// results formatted as what they want.
-				panic("YOUR CODE HERE")
+				result := make([]KeyValue, 0)
+				for i := 0; i < t.nMap; i++ {
+					rpath := reduceName(t.dataDir, t.jobName, i, t.taskNumber)
+					//fmt.Printf("reduce:{%s}\n", rpath)
+					fs, bs := OpenFileAndBuf(rpath)
+					for {
+						data, err := bs.ReadBytes('\n')
+						if err != nil {
+							if err != io.EOF {
+								panic(err)
+							}
+							break
+						}
+						var tmp KeyValue
+						if err = json.Unmarshal(data, &tmp); err != nil {
+							panic(err)
+						}
+						result = append(result, tmp)
+					}
+					if err := fs.Close(); err != nil {
+						panic(err)
+					}
+				}
+				keyValuesMap := make(map[string][]string)
+				for _, keyValue := range result {
+					key, value := keyValue.Key, keyValue.Value
+					keyValuesMap[key] = append(keyValuesMap[key], value)
+				}
+
+				fs, bs := CreateFileAndBuf(mergeName(t.dataDir, t.jobName, t.taskNumber))
+				for key, values := range keyValuesMap {
+					if _, err := bs.WriteString(t.reduceF(key, values)); err != nil {
+						panic(err)
+					}
+				}
+				SafeClose(fs, bs)
 			}
 			t.wg.Done()
 		case <-c.exit:
@@ -159,7 +195,28 @@ func (c *MRCluster) run(jobName, dataDir string, mapF MapF, reduceF ReduceF, map
 
 	// reduce phase
 	// YOUR CODE HERE :D
-	panic("YOUR CODE HERE")
+	tasks = make([]*task, 0, nReduce)
+	for i := 0; i < nReduce; i++ {
+		t := &task{
+			dataDir:    dataDir,
+			jobName:    jobName,
+			phase:      reducePhase,
+			taskNumber: i,
+			nMap:       nMap,
+			nReduce:    nReduce,
+			reduceF:    reduceF,
+		}
+		t.wg.Add(1)
+		tasks = append(tasks, t)
+		go func() { c.taskCh <- t }()
+	}
+	result := make([]string, nReduce)
+	for i, t := range tasks {
+		t.wg.Wait()
+		result[i] = mergeName(t.dataDir, t.jobName, t.taskNumber)
+	}
+	//fmt.Printf("result:{%v}\n", result)
+	notify <- result
 }
 
 func ihash(s string) int {
